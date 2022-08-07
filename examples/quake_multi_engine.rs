@@ -44,11 +44,20 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
         },
     );
 
-    // v1.20.3
+    // v1.20.3 (32-bit)
+    hm.insert(
+        23941120,
+        ExeVersion {
+            version: "1.20.3 (32-bit)".to_owned(),
+            hp: vec![0x168e258],
+        },
+    );
+
+    // v1.20.3 (64-bit)
     hm.insert(
         25260032,
         ExeVersion {
-            version: "1.20.3".to_owned(),
+            version: "1.20.3 (64-bit)".to_owned(),
             hp: vec![0x17c0658],
         },
     );
