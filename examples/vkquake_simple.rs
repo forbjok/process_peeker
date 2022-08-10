@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use process_peeker::AddressPointer;
+use process_peeker::{Address, AddressPointer};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 const HP_POINTER_PATH: &[AddressPointer] = &[0x17c0658];
@@ -24,12 +24,12 @@ fn main() -> Result<(), anyhow::Error> {
 
             let base_address = module.base_address;
 
-            let hp = p.resolve_pointer_path(base_address, HP_POINTER_PATH)?;
+            let hp: Address<i32> = p.resolve_pointer_path(base_address, HP_POINTER_PATH)?;
 
             let mut prev_value: Option<i32> = None;
 
             loop {
-                let value: i32 = p.peek(hp)?;
+                let value: i32 = hp.peek()?;
 
                 if let Some(prev_value) = prev_value.take() {
                     if value != prev_value {

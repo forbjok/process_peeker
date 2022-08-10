@@ -1,6 +1,6 @@
 mod win32util;
 
-use std::{cell::RefCell, fs, io::Read, mem, path::PathBuf, rc::Rc, time::Duration};
+use std::{cell::RefCell, fs, io::Read, marker::PhantomData, mem, path::PathBuf, rc::Rc, time::Duration};
 
 use anyhow::Context;
 use byteorder::{ByteOrder, LittleEndian};
@@ -41,6 +41,13 @@ pub struct Module {
 #[derive(Debug)]
 pub struct Process {
     handle: HANDLE,
+}
+
+#[derive(Debug)]
+pub struct Address<T: FromBytes> {
+    process: ProcessRef,
+    address: AddressPointer,
+    _phantom_data: PhantomData<T>,
 }
 
 type ProcessRef = Rc<Process>;
@@ -154,11 +161,11 @@ impl ConnectedProcess {
         Ok(module)
     }
 
-    pub fn resolve_pointer_path(
+    pub fn resolve_pointer_path<T: FromBytes>(
         &self,
         base_address: AddressPointer,
         pointer_path: &[AddressPointer],
-    ) -> Result<AddressPointer, anyhow::Error> {
+    ) -> Result<Address<T>, anyhow::Error> {
         let mut address = base_address;
         let mut buf = [0u8; PTR_SIZE];
         let mut bytes_read: SIZE_T = 0;
@@ -194,31 +201,11 @@ impl ConnectedProcess {
 
         debug!("Final address: {}", address);
 
-        Ok(address)
-    }
-
-    pub fn peek<T: FromBytes>(&self, address: AddressPointer) -> Result<T, anyhow::Error> {
-        // Would have liked to use an array here, but that is currently
-        // failing with "constant expression depends on a generic parameter".
-        let mut buf = vec![0u8; T::SIZE];
-
-        let mut bytes_read: SIZE_T = 0;
-
-        let result = unsafe {
-            ReadProcessMemory(
-                self.process.handle,
-                address as LPCVOID,
-                buf.as_mut_ptr() as *mut c_void,
-                T::SIZE,
-                &mut bytes_read,
-            )
-        };
-
-        if result == FALSE {
-            return Err(anyhow::anyhow!("Reading process memory"));
-        }
-
-        Ok(T::from_bytes(&buf))
+        Ok(Address {
+            process: self.process.clone(),
+            address,
+            _phantom_data: Default::default(),
+        })
     }
 }
 
@@ -272,6 +259,32 @@ impl Module {
         debug!("MODULE '{}' HASH: {}", self.name, &hash);
 
         Ok(hash)
+    }
+}
+
+impl<T: FromBytes> Address<T> {
+    pub fn peek(&self) -> Result<T, anyhow::Error> {
+        // Would have liked to use an array here, but that is currently
+        // failing with "constant expression depends on a generic parameter".
+        let mut buf = vec![0u8; T::SIZE];
+
+        let mut bytes_read: SIZE_T = 0;
+
+        let result = unsafe {
+            ReadProcessMemory(
+                self.process.handle,
+                self.address as LPCVOID,
+                buf.as_mut_ptr() as *mut c_void,
+                T::SIZE,
+                &mut bytes_read,
+            )
+        };
+
+        if result == FALSE {
+            return Err(anyhow::anyhow!("Reading process memory"));
+        }
+
+        Ok(T::from_bytes(&buf))
     }
 }
 
