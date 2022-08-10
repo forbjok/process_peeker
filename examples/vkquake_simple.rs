@@ -13,7 +13,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Loop forever, trying to connect to the vkQuake process
     loop {
         let result = process_peeker::connect::<_, ()>("vkQuake", |p| {
-            let module = p.module("vkQuake.exe").with_context(|| "Module not found")?;
+            let module = p.module("vkQuake.exe")?.with_context(|| "Module not found")?;
 
             if module.size != 25260032 {
                 return Err(anyhow::anyhow!(

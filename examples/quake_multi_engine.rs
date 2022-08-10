@@ -103,7 +103,7 @@ fn try_connect_game(
     versions: &HashMap<u32, ExeVersion>,
 ) -> Result<Result<(), anyhow::Error>, anyhow::Error> {
     let result = process_peeker::try_connect::<_, ()>(name, |p| {
-        let module = p.module(&format!("{name}.exe")).with_context(|| "Module not found")?;
+        let module = p.module(&format!("{name}.exe"))?.with_context(|| "Module not found")?;
 
         let exe_version = versions
             .get(&module.size)
