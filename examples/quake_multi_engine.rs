@@ -112,9 +112,7 @@ fn try_connect_game(
 
         println!("{name} v{} detected.", exe_version.version);
 
-        let base_address = module.base_address;
-
-        let hp: Address<i32> = p.resolve_pointer_path(base_address, &exe_version.hp)?;
+        let hp = module.resolve::<i32>(&Address::PointerPath(exe_version.hp.clone()))?;
 
         let mut prev_value: Option<i32> = None;
 

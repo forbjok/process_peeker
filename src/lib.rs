@@ -43,8 +43,13 @@ pub struct Process {
     handle: HANDLE,
 }
 
+pub enum Address {
+    Fixed(AddressPointer),
+    PointerPath(Vec<AddressPointer>),
+}
+
 #[derive(Debug)]
-pub struct Address<T: FromBytes> {
+pub struct ResolvedAddress<T: FromBytes> {
     process: ProcessRef,
     address: AddressPointer,
     _phantom_data: PhantomData<T>,
@@ -160,53 +165,6 @@ impl ConnectedProcess {
 
         Ok(module)
     }
-
-    pub fn resolve_pointer_path<T: FromBytes>(
-        &self,
-        base_address: AddressPointer,
-        pointer_path: &[AddressPointer],
-    ) -> Result<Address<T>, anyhow::Error> {
-        let mut address = base_address;
-        let mut buf = [0u8; PTR_SIZE];
-        let mut bytes_read: SIZE_T = 0;
-
-        // Follow pointer path
-
-        let mut ptr_path_iter = pointer_path.iter().peekable();
-        while let Some(ptr_offset) = ptr_path_iter.next() {
-            debug!("Address: {}, ptr_offset: {}", address as u64, *ptr_offset as u64);
-
-            address += ptr_offset;
-
-            if ptr_path_iter.peek().is_none() {
-                break;
-            }
-
-            let result = unsafe {
-                ReadProcessMemory(
-                    self.process.handle,
-                    address as LPCVOID,
-                    buf.as_mut_ptr() as *mut c_void,
-                    PTR_SIZE,
-                    &mut bytes_read,
-                )
-            };
-
-            if result == FALSE {
-                return Err(anyhow::anyhow!("Reading process memory"));
-            }
-
-            address = LittleEndian::read_u64(&buf);
-        }
-
-        debug!("Final address: {}", address);
-
-        Ok(Address {
-            process: self.process.clone(),
-            address,
-            _phantom_data: Default::default(),
-        })
-    }
 }
 
 impl Module {
@@ -260,9 +218,70 @@ impl Module {
 
         Ok(hash)
     }
+
+    pub fn resolve<T: FromBytes>(&self, address: &Address) -> Result<ResolvedAddress<T>, anyhow::Error> {
+        match address {
+            Address::Fixed(a) => self.resolve_fixed(*a),
+            Address::PointerPath(pp) => self.resolve_pointer_path(pp),
+        }
+    }
+
+    fn resolve_fixed<T: FromBytes>(&self, address: AddressPointer) -> Result<ResolvedAddress<T>, anyhow::Error> {
+        Ok(ResolvedAddress {
+            process: self.process.clone(),
+            address,
+            _phantom_data: Default::default(),
+        })
+    }
+
+    fn resolve_pointer_path<T: FromBytes>(
+        &self,
+        pointer_path: &[AddressPointer],
+    ) -> Result<ResolvedAddress<T>, anyhow::Error> {
+        let mut address = self.base_address;
+        let mut buf = [0u8; PTR_SIZE];
+        let mut bytes_read: SIZE_T = 0;
+
+        // Follow pointer path
+
+        let mut ptr_path_iter = pointer_path.iter().peekable();
+        while let Some(ptr_offset) = ptr_path_iter.next() {
+            debug!("Address: {}, ptr_offset: {}", address as u64, *ptr_offset as u64);
+
+            address += ptr_offset;
+
+            if ptr_path_iter.peek().is_none() {
+                break;
+            }
+
+            let result = unsafe {
+                ReadProcessMemory(
+                    self.process.handle,
+                    address as LPCVOID,
+                    buf.as_mut_ptr() as *mut c_void,
+                    PTR_SIZE,
+                    &mut bytes_read,
+                )
+            };
+
+            if result == FALSE {
+                return Err(anyhow::anyhow!("Reading process memory"));
+            }
+
+            address = LittleEndian::read_u64(&buf);
+        }
+
+        debug!("Final address: {}", address);
+
+        Ok(ResolvedAddress {
+            process: self.process.clone(),
+            address,
+            _phantom_data: Default::default(),
+        })
+    }
 }
 
-impl<T: FromBytes> Address<T> {
+impl<T: FromBytes> ResolvedAddress<T> {
     pub fn peek(&self) -> Result<T, anyhow::Error> {
         // Would have liked to use an array here, but that is currently
         // failing with "constant expression depends on a generic parameter".

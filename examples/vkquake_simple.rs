@@ -22,9 +22,7 @@ fn main() -> Result<(), anyhow::Error> {
 
             println!("vkQuake v1.20.3 (64-bit) detected.");
 
-            let base_address = module.base_address;
-
-            let hp: Address<i32> = p.resolve_pointer_path(base_address, HP_POINTER_PATH)?;
+            let hp = module.resolve::<i32>(&Address::PointerPath(HP_POINTER_PATH.into()))?;
 
             let mut prev_value: Option<i32> = None;
 
