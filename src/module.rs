@@ -14,7 +14,7 @@ use winapi::{
 };
 
 use crate::{
-    address::{Address, ResolvedAddress},
+    address::{Address, AddressSpec},
     process::ProcessRef,
     win32util::wstring_to_osstring,
     AddressPointer, FromBytes, PTR_SIZE,
@@ -83,25 +83,22 @@ impl Module {
         Ok(hash)
     }
 
-    pub fn resolve<T: FromBytes>(&self, address: &Address) -> Result<ResolvedAddress<T>, anyhow::Error> {
+    pub fn resolve<T: FromBytes>(&self, address: &AddressSpec) -> Result<Address<T>, anyhow::Error> {
         match address {
-            Address::Fixed(a) => self.resolve_fixed(*a),
-            Address::PointerPath(pp) => self.resolve_pointer_path(pp),
+            AddressSpec::Fixed(a) => self.resolve_fixed(*a),
+            AddressSpec::PointerPath(pp) => self.resolve_pointer_path(pp),
         }
     }
 
-    fn resolve_fixed<T: FromBytes>(&self, address: AddressPointer) -> Result<ResolvedAddress<T>, anyhow::Error> {
-        Ok(ResolvedAddress {
+    fn resolve_fixed<T: FromBytes>(&self, address: AddressPointer) -> Result<Address<T>, anyhow::Error> {
+        Ok(Address {
             process: self.process.clone(),
             address,
             _phantom_data: Default::default(),
         })
     }
 
-    fn resolve_pointer_path<T: FromBytes>(
-        &self,
-        pointer_path: &[AddressPointer],
-    ) -> Result<ResolvedAddress<T>, anyhow::Error> {
+    fn resolve_pointer_path<T: FromBytes>(&self, pointer_path: &[AddressPointer]) -> Result<Address<T>, anyhow::Error> {
         let mut address = self.base_address;
         let mut buf = [0u8; PTR_SIZE];
         let mut bytes_read: SIZE_T = 0;
@@ -137,7 +134,7 @@ impl Module {
 
         debug!("Final address: {}", address);
 
-        Ok(ResolvedAddress {
+        Ok(Address {
             process: self.process.clone(),
             address,
             _phantom_data: Default::default(),

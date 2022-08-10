@@ -2,12 +2,12 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
 use once_cell::sync::Lazy;
-use process_peeker::{Address, AddressPointer};
+use process_peeker::AddressSpec;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 struct ExeVersion {
     version: String,
-    hp: Vec<AddressPointer>,
+    hp: AddressSpec,
 }
 
 static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = Lazy::new(|| {
@@ -25,7 +25,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = La
         "5bb6bb30d8f50f32785a80415b93d1572bada955ac64e91b91532be779a273c4".to_owned(),
         ExeVersion {
             version: "1.09 (GL 0.95) (Steam)".to_owned(),
-            hp: vec![0x94c7bc],
+            hp: AddressSpec::PointerPath(vec![0x94c7bc]),
         },
     );
 
@@ -40,7 +40,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = La
         "68e853667e3bd4db56ede3f186a9e791595f35f17c631405ab3fbd3f62980e8a".to_owned(),
         ExeVersion {
             version: "1.05.2".to_owned(),
-            hp: vec![0x5d2eb4],
+            hp: AddressSpec::PointerPath(vec![0x5d2eb4]),
         },
     );
 
@@ -49,7 +49,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = La
         "336a923ffc0d82f8b9c35c3d670d95bb9591c24bb993085092d248fc83abca9d".to_owned(),
         ExeVersion {
             version: "1.20.3 (32-bit)".to_owned(),
-            hp: vec![0x168e258],
+            hp: AddressSpec::PointerPath(vec![0x168e258]),
         },
     );
 
@@ -58,7 +58,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = La
         "1a216ffc898be44143479de60570baeb32c7ea592b52fdd4d295d821400f61a5".to_owned(),
         ExeVersion {
             version: "1.20.3 (64-bit)".to_owned(),
-            hp: vec![0x17c0658],
+            hp: AddressSpec::PointerPath(vec![0x17c0658]),
         },
     );
 
@@ -73,7 +73,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = La
         "efa739ed7ab48ba088813d488370f33ed4ce9c87bed6d8dbaecabdd9ca2cb804".to_owned(),
         ExeVersion {
             version: "3.2.3".to_owned(),
-            hp: vec![0xcbede0],
+            hp: AddressSpec::PointerPath(vec![0xcbede0]),
         },
     );
 
@@ -112,7 +112,7 @@ fn try_connect_game(
 
         println!("{name} v{} detected.", exe_version.version);
 
-        let hp = module.resolve::<i32>(&Address::PointerPath(exe_version.hp.clone()))?;
+        let hp = module.resolve::<i32>(&exe_version.hp)?;
 
         let mut prev_value: Option<i32> = None;
 

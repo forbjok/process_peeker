@@ -6,7 +6,6 @@ mod win32util;
 use std::{cell::RefCell, mem, rc::Rc, time::Duration};
 
 use byteorder::{ByteOrder, LittleEndian};
-use process::ConnectedProcess;
 use sysinfo::{PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 use tracing::debug;
 use winapi::{
@@ -19,8 +18,11 @@ use winapi::{
 
 use self::process::Process;
 
+pub use self::address::{Address, AddressSpec};
+pub use self::module::{Module, ModuleRef};
+pub use self::process::ConnectedProcess;
+
 pub type AddressPointer = u64;
-pub use self::address::Address;
 
 const PTR_SIZE: usize = mem::size_of::<AddressPointer>();
 

@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use process_peeker::{Address, AddressPointer};
+use process_peeker::AddressSpec;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-
-const HP_POINTER_PATH: &[AddressPointer] = &[0x17c0658];
 
 fn main() -> Result<(), anyhow::Error> {
     // Initialize logging
     initialize_logging();
+
+    let hp_pointer_path = AddressSpec::PointerPath(vec![0x17c0658]);
 
     // Loop forever, trying to connect to the vkQuake process
     loop {
@@ -22,7 +22,7 @@ fn main() -> Result<(), anyhow::Error> {
 
             println!("vkQuake v1.20.3 (64-bit) detected.");
 
-            let hp = module.resolve::<i32>(&Address::PointerPath(HP_POINTER_PATH.into()))?;
+            let hp = module.resolve::<i32>(&hp_pointer_path)?;
 
             let mut prev_value: Option<i32> = None;
 

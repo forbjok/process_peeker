@@ -12,19 +12,19 @@ use winapi::{
 use crate::{process::ProcessRef, AddressPointer, FromBytes};
 
 #[derive(Debug)]
-pub enum Address {
+pub enum AddressSpec {
     Fixed(AddressPointer),
     PointerPath(Vec<AddressPointer>),
 }
 
 #[derive(Debug)]
-pub struct ResolvedAddress<T: FromBytes> {
+pub struct Address<T: FromBytes> {
     pub(crate) process: ProcessRef,
     pub(crate) address: AddressPointer,
     pub(crate) _phantom_data: PhantomData<T>,
 }
 
-impl<T: FromBytes> ResolvedAddress<T> {
+impl<T: FromBytes> Address<T> {
     pub fn peek(&self) -> Result<T, anyhow::Error> {
         // Would have liked to use an array here, but that is currently
         // failing with "constant expression depends on a generic parameter".
