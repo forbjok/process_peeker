@@ -14,15 +14,13 @@ fn main() -> Result<(), anyhow::Error> {
     loop {
         let result = process_peeker::connect::<_, ()>("vkQuake", |p| {
             let module = p.module("vkQuake.exe")?.with_context(|| "Module not found")?;
+            let hash = module.hash_sha256()?;
 
-            if module.size != 25260032 {
-                return Err(anyhow::anyhow!(
-                    "Unsupported executable version (module size: {})",
-                    module.size
-                ));
+            if hash != "1a216ffc898be44143479de60570baeb32c7ea592b52fdd4d295d821400f61a5" {
+                return Err(anyhow::anyhow!("Unsupported executable version (SHA256: {})", hash));
             }
 
-            println!("vkQuake v1.20.3 detected.");
+            println!("vkQuake v1.20.3 (64-bit) detected.");
 
             let base_address = module.base_address;
 

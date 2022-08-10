@@ -10,7 +10,7 @@ struct ExeVersion {
     hp: Vec<AddressPointer>,
 }
 
-static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy::new(|| {
+static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<String, ExeVersion>>> = Lazy::new(|| {
     let mut ehm = HashMap::new();
 
     // --- glquake ---
@@ -22,7 +22,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
     // this is the current version of
     // "Quake (Original)" on steam.
     hm.insert(
-        9859072,
+        "5bb6bb30d8f50f32785a80415b93d1572bada955ac64e91b91532be779a273c4".to_owned(),
         ExeVersion {
             version: "1.09 (GL 0.95) (Steam)".to_owned(),
             hp: vec![0x94c7bc],
@@ -35,9 +35,9 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
 
     let mut hm = HashMap::new();
 
-    // v1.05.2
+    // v1.05.2 (64-bit)
     hm.insert(
-        6221824,
+        "68e853667e3bd4db56ede3f186a9e791595f35f17c631405ab3fbd3f62980e8a".to_owned(),
         ExeVersion {
             version: "1.05.2".to_owned(),
             hp: vec![0x5d2eb4],
@@ -46,7 +46,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
 
     // v1.20.3 (32-bit)
     hm.insert(
-        23941120,
+        "336a923ffc0d82f8b9c35c3d670d95bb9591c24bb993085092d248fc83abca9d".to_owned(),
         ExeVersion {
             version: "1.20.3 (32-bit)".to_owned(),
             hp: vec![0x168e258],
@@ -55,7 +55,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
 
     // v1.20.3 (64-bit)
     hm.insert(
-        25260032,
+        "1a216ffc898be44143479de60570baeb32c7ea592b52fdd4d295d821400f61a5".to_owned(),
         ExeVersion {
             version: "1.20.3 (64-bit)".to_owned(),
             hp: vec![0x17c0658],
@@ -70,7 +70,7 @@ static GAME_EXECUTABLES: Lazy<HashMap<String, HashMap<u32, ExeVersion>>> = Lazy:
 
     // v3.2.3
     hm.insert(
-        137560064,
+        "efa739ed7ab48ba088813d488370f33ed4ce9c87bed6d8dbaecabdd9ca2cb804".to_owned(),
         ExeVersion {
             version: "3.2.3".to_owned(),
             hp: vec![0xcbede0],
@@ -100,14 +100,15 @@ fn main() -> Result<(), anyhow::Error> {
 
 fn try_connect_game(
     name: &str,
-    versions: &HashMap<u32, ExeVersion>,
+    versions: &HashMap<String, ExeVersion>,
 ) -> Result<Result<(), anyhow::Error>, anyhow::Error> {
     let result = process_peeker::try_connect::<_, ()>(name, |p| {
         let module = p.module(&format!("{name}.exe"))?.with_context(|| "Module not found")?;
+        let hash = module.hash_sha256()?;
 
         let exe_version = versions
-            .get(&module.size)
-            .with_context(|| format!("Unsupported executable version (module size: {})", module.size))?;
+            .get(&hash)
+            .with_context(|| format!("Unsupported executable version (SHA256: {})", hash))?;
 
         println!("{name} v{} detected.", exe_version.version);
 

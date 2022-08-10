@@ -1,10 +1,13 @@
 mod win32util;
 
-use std::{cell::RefCell, mem, rc::Rc, time::Duration};
+use std::{cell::RefCell, fs, io::Read, mem, path::PathBuf, rc::Rc, time::Duration};
 
+use anyhow::Context;
 use byteorder::{ByteOrder, LittleEndian};
+use sha2::{Digest, Sha256};
 use sysinfo::{PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 use tracing::debug;
+use win32util::wstring_to_osstring;
 use winapi::{
     ctypes::c_void,
     shared::{
@@ -15,7 +18,7 @@ use winapi::{
     um::{
         memoryapi::ReadProcessMemory,
         processthreadsapi::OpenProcess,
-        psapi::{EnumProcessModules, GetModuleBaseNameW, GetModuleInformation, MODULEINFO},
+        psapi::{EnumProcessModules, GetModuleBaseNameW, GetModuleFileNameExW, GetModuleInformation, MODULEINFO},
         winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
     },
 };
@@ -28,6 +31,8 @@ const PTR_SIZE: usize = mem::size_of::<AddressPointer>();
 
 #[derive(Debug)]
 pub struct Module {
+    process: ProcessRef,
+    handle: HMODULE,
     pub name: String,
     pub size: u32,
     pub base_address: AddressPointer,
@@ -132,6 +137,8 @@ impl ConnectedProcess {
             let base_address = module_info.lpBaseOfDll as AddressPointer;
 
             let module = Rc::new(Module {
+                process: self.process.clone(),
+                handle: module_handle,
                 name,
                 size,
                 base_address,
@@ -212,6 +219,59 @@ impl ConnectedProcess {
         }
 
         Ok(T::from_bytes(&buf))
+    }
+}
+
+impl Module {
+    /// Get full path to module
+    fn filename(&self) -> Result<PathBuf, anyhow::Error> {
+        let mut module_filename = [0u16; MAX_PATH + 1];
+
+        let result = unsafe {
+            GetModuleFileNameExW(
+                self.process.handle,
+                self.handle,
+                module_filename.as_mut_ptr(),
+                MAX_PATH as DWORD + 1,
+            )
+        };
+
+        if result == 0 {
+            return Err(anyhow::anyhow!("Getting module base name"));
+        }
+
+        let filename = wstring_to_osstring(&module_filename);
+
+        Ok(PathBuf::from(filename))
+    }
+
+    /// Calculate SHA256 hash of this module's binary
+    pub fn hash_sha256(&self) -> Result<String, anyhow::Error> {
+        const BUFFER_SIZE: usize = 524288;
+
+        let path = self.filename()?;
+        let mut file =
+            fs::File::open(&path).with_context(|| format!("Opening file for hashing: {}", path.display()))?;
+
+        let mut sha256 = Sha256::new();
+
+        let mut buf = [0u8; BUFFER_SIZE];
+
+        while let Ok(bytes) = file.read(&mut buf) {
+            if bytes == 0 {
+                break;
+            }
+
+            sha256.update(&buf[..bytes]);
+        }
+
+        let hash = sha256.finalize();
+
+        let hash = hex::encode(hash);
+
+        debug!("MODULE '{}' HASH: {}", self.name, &hash);
+
+        Ok(hash)
     }
 }
 
