@@ -1,6 +1,6 @@
 mod win32util;
 
-use std::{mem, time::Duration};
+use std::{mem, rc::Rc, time::Duration};
 
 use byteorder::{ByteOrder, LittleEndian};
 use sysinfo::{PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
@@ -33,14 +33,23 @@ pub struct Module {
     pub base_address: AddressPointer,
 }
 
-pub struct ConnectedProcess {
+#[derive(Debug)]
+pub struct Process {
     handle: HANDLE,
-    modules: Vec<Module>,
+}
+
+type ProcessRef = Rc<Process>;
+type ModuleRef = Rc<Module>;
+
+#[derive(Debug)]
+pub struct ConnectedProcess {
+    process: ProcessRef,
+    modules: Vec<ModuleRef>,
 }
 
 impl ConnectedProcess {
-    pub fn module(&self, module_name: &str) -> Option<&Module> {
-        self.modules.iter().find(|m| m.name == module_name)
+    pub fn module(&self, module_name: &str) -> Option<ModuleRef> {
+        self.modules.iter().find(|&m| m.name == module_name).cloned()
     }
 
     pub fn resolve_pointer_path(
@@ -66,7 +75,7 @@ impl ConnectedProcess {
 
             let result = unsafe {
                 ReadProcessMemory(
-                    self.handle,
+                    self.process.handle,
                     address as LPCVOID,
                     buf.as_mut_ptr() as *mut c_void,
                     PTR_SIZE,
@@ -95,7 +104,7 @@ impl ConnectedProcess {
 
         let result = unsafe {
             ReadProcessMemory(
-                self.handle,
+                self.process.handle,
                 address as LPCVOID,
                 buf.as_mut_ptr() as *mut c_void,
                 T::SIZE,
@@ -145,6 +154,8 @@ where
             return Err(anyhow::anyhow!("Opening process"));
         }
 
+        let process = Rc::new(Process { handle: process_handle });
+
         const MAX_MODULES: usize = 1024;
 
         let mut module_handles = [0 as HMODULE; MAX_MODULES];
@@ -165,7 +176,7 @@ where
 
         let module_count = (cb_needed as usize) / mem::size_of::<HMODULE>();
 
-        let mut modules: Vec<Module> = Vec::with_capacity(module_count);
+        let mut modules = Vec::with_capacity(module_count);
 
         let mut module_name = [0u16; MAX_PATH + 1];
 
@@ -205,19 +216,16 @@ where
             let size = module_info.SizeOfImage;
             let base_address = module_info.lpBaseOfDll as AddressPointer;
 
-            modules.push(Module {
+            modules.push(Rc::new(Module {
                 name,
                 size,
                 base_address,
-            });
+            }));
         }
 
-        let process = ConnectedProcess {
-            handle: process_handle,
-            modules,
-        };
+        let connected_process = ConnectedProcess { process, modules };
 
-        return Ok(f(process));
+        return Ok(f(connected_process));
     }
 
     Err(anyhow::anyhow!("Process not found"))
